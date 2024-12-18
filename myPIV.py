@@ -5,6 +5,7 @@ from openpiv import tools, pyprocess, validation, filters, scaling
 import numpy as np
 import matplotlib.pyplot as plt
 import pathlib
+import pandas as pd
 
 class myParticleImageVelocimetry:
     def __init__(self, video_name, winsize, searchsize, overlap, fps):
@@ -72,7 +73,7 @@ class myParticleImageVelocimetry:
 
         invalid_mask[invalid_mask==0] = -1
         invalid_mask[invalid_mask>0] = 0
-        invalid_mask[invalid_mask==-1] = 0
+        invalid_mask[invalid_mask==-1] = 1
 
         invalid_mask[(x * self.lengthScale < self.xmin) | (x * self.lengthScale > self.xmax)] = 1
         invalid_mask[(y * self.lengthScale > self.frame_a_size[0] - self.ymin) | (y * self.lengthScale < self.frame_a_size[0] - self.ymax)] = 1
@@ -137,3 +138,56 @@ class myParticleImageVelocimetry:
             image_name= imagePath,
         )
         plt.show()
+
+    def averageUV(self):
+        df = pd.read_csv(self.video_name + 'sum.txt', delim_whitespace=True)
+        df.columns = ["x", "y", "u", "v", "flags", "mask", "NAN"]
+        filtered_df = df[df['flags'] != 1]
+
+        outputFile = open(self.video_name + "u.txt", "w")
+        outputFile.write("y\tu\tstd\n")
+        for x_val in filtered_df['y'].unique():
+            # 元のdfからx_valに一致する行を抽出
+            rows_with_x = filtered_df[filtered_df['y'] == x_val]
+            
+            outputFile.write("{}\t{}\t{}\n".format(x_val, rows_with_x['u'].mean(), rows_with_x['u'].std()))
+        outputFile.close()
+
+        outputFile = open(self.video_name + "v.txt", "w")
+        outputFile.write("x\tv\tstd\n")
+        for x_val in filtered_df['x'].unique():
+            # 元のdfからx_valに一致する行を抽出
+            rows_with_x = filtered_df[filtered_df['x'] == x_val]
+
+            outputFile.write("{}\t{}\t{}\n".format(x_val, rows_with_x['v'].mean(), rows_with_x['v'].std()))
+        outputFile.close()
+
+    def showUV(self):
+        plt.rcParams['ytick.direction'] = 'in'
+        plt.rcParams['xtick.direction'] = 'in'
+        plt.rcParams['figure.subplot.bottom'] = 0.2
+        plt.rcParams['figure.subplot.left'] = 0.2
+        def axNormal(ax):
+            ax.xaxis.set_ticks_position('both')
+            ax.yaxis.set_ticks_position('both')
+            ax.tick_params(axis='x')
+            ax.tick_params(axis='y')
+
+        df=pd.read_table(self.video_name + "u.txt")
+        fig, axs = plt.subplots(1, 1, figsize=(5, 5))
+        axNormal(axs)
+        # プロット作成
+        axs.errorbar(df["y"], df["u"], yerr=df["std"], fmt='o', linestyle='-', capsize=5)
+        axs.set_xlabel(f'$y$ [mm]')
+        axs.set_ylabel(f'Averaged $u$, $|u|$ [mm/s]')
+        plt.show()
+
+        df=pd.read_table(self.video_name + "v.txt")
+        fig, axs = plt.subplots(1, 1, figsize=(5, 5))
+        axNormal(axs)
+        # プロット作成
+        axs.errorbar(df["x"], df["v"], yerr=df["std"], fmt='o', linestyle='-', capsize=5)
+        axs.set_xlabel(f'$x$ [mm]')
+        axs.set_ylabel(f'Averaged $v$, $|v|$ [mm/s]')
+        plt.show()
+            
